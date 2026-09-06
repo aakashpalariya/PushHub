@@ -1,0 +1,29 @@
+<svg width="720" height="360" viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgPromo" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#450a0a"/>
+      <stop offset="40%" stop-color="#7c2d12"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <filter id="blurPromo" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="35"/>
+    </filter>
+  </defs>
+  <rect width="720" height="360" fill="url(#bgPromo)"/>
+  <circle cx="160" cy="100" r="140" fill="#f97316" fill-opacity="0.4" filter="url(#blurPromo)"/>
+  <circle cx="580" cy="240" r="150" fill="#e11d48" fill-opacity="0.35" filter="url(#blurPromo)"/>
+  
+  <!-- Sparkles -->
+  <g fill="#fef08a" opacity="0.8">
+    <polygon points="120,70 124,84 138,88 124,92 120,106 116,92 102,88 116,84"/>
+    <polygon points="610,90 613,100 623,103 613,106 610,116 607,106 597,103 607,100"/>
+    <polygon points="560,280 563,288 571,291 563,294 560,302 557,294 549,291 557,288"/>
+    <polygon points="180,270 183,278 191,281 183,284 180,292 177,284 169,281 177,278"/>
+  </g>
+  
+  <!-- Card Container -->
+  <rect x="180" y="115" width="360" height="130" rx="24" fill="#000000" fill-opacity="0.55" stroke="rgba(251,191,36,0.3)" stroke-width="2"/>
+  <text x="360" y="162" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="800" fill="#fbbf24" letter-spacing="3">LIMITED TIME EXCLUSIVE</text>
+  <text x="360" y="202" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="900" fill="#ffffff" letter-spacing="1">SPECIAL OFFER 🎉</text>
+  <text x="360" y="228" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#fed7aa">Tap to unlock your discount coupon</text>
+</svg>

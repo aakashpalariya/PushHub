@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String             @id @default(cuid())
+  name         String
+  email        String             @unique
+  passwordHash String
+  isAdmin      Boolean            @default(false)
+  isActive     Boolean            @default(true)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  notifications Notification[]
+  subscriptions PushSubscription[]
+  history       NotificationHistory[]
+  templates     Template[]
+}
+
+model Notification {
+  id                 String    @id @default(cuid())
+  userId             String
+  name               String
+  title              String
+  body               String
+  icon               String?
+  badge              String?
+  image              String?
+  url                String?
+  tag                String?
+  direction          String?   @default("auto")
+  language           String?   @default("en")
+  requireInteraction Boolean   @default(false)
+  silent             Boolean   @default(false)
+  renotify           Boolean   @default(false)
+  timestamp          Float?
+  vibration          String?
+  data               String?
+  actions            String?
+  style              String?
+  lastTested         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PushSubscription {
+  id         String   @id @default(cuid())
+  userId     String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  platform   String?
+  browser    String?
+  deviceName String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model NotificationHistory {
+  id             String   @id @default(cuid())
+  userId         String
+  notificationId String?
+  title          String
+  payload        String
+  device         String?
+  platform       String?
+  status         String   // "sent" | "failed" | "expired"
+  error          String?
+  sentAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Template {
+  id               String   @id @default(cuid())
+  userId           String?  // Null for system templates
+  name             String
+  description      String
+  category         String
+  configuration    String   // Serialized JSON of NotificationConfig
+  isSystemTemplate Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isSystemTemplate])
+}

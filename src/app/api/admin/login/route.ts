@@ -1,0 +1,74 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db/prisma";
+import { comparePassword, hashPassword } from "@/lib/auth/password";
+import { setSessionCookie } from "@/lib/auth/session";
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const { email, password } = body;
+    const adminEmail = (email || "admin@pushhub.dev").trim().toLowerCase();
+
+    if (!password) {
+      return NextResponse.json(
+        { error: "Administrator password is required" },
+        { status: 400 }
+      );
+    }
+
+    let adminUser = await prisma.user.findUnique({
+      where: { email: adminEmail },
+    });
+
+    if (!adminUser && adminEmail === "admin@pushhub.dev") {
+      const defaultHash = await hashPassword("adminPassword123!");
+      adminUser = await prisma.user.create({
+        data: {
+          name: "Admin Marcus",
+          email: adminEmail,
+          passwordHash: defaultHash,
+          isAdmin: true,
+        },
+      });
+    }
+
+    if (!adminUser || !adminUser.isAdmin) {
+      return NextResponse.json(
+        { error: "Access denied. Not an administrator account." },
+        { status: 403 }
+      );
+    }
+
+    const isMatch = await comparePassword(password, adminUser.passwordHash);
+    if (!isMatch) {
+      return NextResponse.json(
+        { error: "Incorrect administrator password" },
+        { status: 401 }
+      );
+    }
+
+    await setSessionCookie({
+      userId: adminUser.id,
+      email: adminUser.email,
+      name: adminUser.name,
+      isAdmin: true,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "Administrator session established",
+      user: {
+        id: adminUser.id,
+        email: adminUser.email,
+        name: adminUser.name,
+        isAdmin: true,
+      },
+    });
+  } catch (error) {
+    console.error("Admin login error:", error);
+    return NextResponse.json(
+      { error: "Failed to authenticate administrator" },
+      { status: 500 }
+    );
+  }
+}
