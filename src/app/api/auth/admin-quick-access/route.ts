@@ -1,11 +1,12 @@
 "use server";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, initDb } from "@/lib/db/prisma";
 import { hashPassword } from "@/lib/auth/password";
 import { setSessionCookie } from "@/lib/auth/session";
 
 export async function POST() {
   try {
+    await initDb();
     const adminEmail = "admin@pushhub.dev";
     let adminUser = await prisma.user.findUnique({
       where: { email: adminEmail },

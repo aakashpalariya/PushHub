@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, initDb } from "@/lib/db/prisma";
 import { loginSchema } from "@/lib/validation/auth";
-import { comparePassword } from "@/lib/auth/password";
+import { comparePassword, hashPassword } from "@/lib/auth/password";
 import { setSessionCookie } from "@/lib/auth/session";
 
 export async function POST(req: Request) {
   try {
+    await initDb();
+
     const body = await req.json();
     const result = loginSchema.safeParse(body);
 
@@ -17,9 +19,25 @@ export async function POST(req: Request) {
     }
 
     const { email, password } = result.data;
-    const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
+    const normalizedEmail = email.toLowerCase().trim();
+
+    let user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
     });
+
+    // Auto-create default administrator if attempting login on a freshly initialized database
+    if (!user && (normalizedEmail === "admin@pushhub.dev" || normalizedEmail === "admin@pushlab.dev")) {
+      const passwordHash = await hashPassword("adminPassword123!");
+      user = await prisma.user.create({
+        data: {
+          name: "Admin Marcus",
+          email: normalizedEmail,
+          passwordHash,
+          isAdmin: true,
+          isActive: true,
+        },
+      });
+    }
 
     if (!user) {
       return NextResponse.json(

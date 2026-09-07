@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, initDb } from "@/lib/db/prisma";
 import { comparePassword, hashPassword } from "@/lib/auth/password";
 import { setSessionCookie } from "@/lib/auth/session";
 
 export async function POST(req: Request) {
   try {
+    await initDb();
     const body = await req.json();
     const { email, password } = body;
     const adminEmail = (email || "admin@pushhub.dev").trim().toLowerCase();
