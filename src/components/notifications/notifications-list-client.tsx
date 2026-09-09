@@ -4,23 +4,17 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Search,
   PlusCircle,
   Bell,
   Send,
   Edit,
   Copy,
   Trash2,
-  Calendar,
-  Layers,
-  Filter,
   ArrowUpDown,
-  Tag,
-  ExternalLink,
   Bookmark,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -32,6 +26,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { usePushSubscription } from "@/hooks/use-push-subscription";
 import { useTheme } from "@/components/theme/theme-provider";
 import { NotificationConfig } from "@/types/notification";
+import { ScheduledNotificationsCard } from "./scheduled-notifications-card";
 
 interface NotificationItem extends NotificationConfig {
   id: string;
@@ -90,13 +85,12 @@ export function NotificationsListClient({
           const timeB = b.lastTested ? new Date(b.lastTested).getTime() : 0;
           return timeB - timeA;
         }
-        // default newest
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       });
   }, [notifications, search, sortBy, filterType]);
 
-  // Quick Test Push Handler
-  const handleTest = async (id: string) => {
+  // Quick Test Push Handler with optional delay
+  const handleTest = async (id: string, delaySeconds = 0) => {
     if (!isSubscribed) {
       toast.info("Subscribing this browser first...");
       const subscribed = await subscribeDevice();
@@ -111,15 +105,20 @@ export function NotificationsListClient({
       const res = await fetch(`/api/notifications/${id}/test`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ theme: resolvedTheme }),
+        body: JSON.stringify({ theme: resolvedTheme, delaySeconds }),
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "Failed to dispatch test");
       }
 
-      toast.success(data.message || "Test push delivered to your devices!");
-      // Update local lastTested time
+      toast.success(
+        data.message ||
+          (delaySeconds > 0
+            ? `Test push scheduled in ${delaySeconds}s!`
+            : "Test push delivered to your devices!")
+      );
+
       setNotifications((prev) =>
         prev.map((item) =>
           item.id === id ? { ...item, lastTested: new Date().toISOString() } : item
@@ -153,7 +152,7 @@ export function NotificationsListClient({
 
       toast.success("Notification duplicated!");
       setNotifications((prev) => [data.notification, ...prev]);
-    } catch (err) {
+    } catch {
       toast.error("Failed to duplicate notification");
     }
   };
@@ -234,7 +233,7 @@ export function NotificationsListClient({
 
       toast.success("Notification deleted");
       setNotifications((prev) => prev.filter((item) => item.id !== id));
-    } catch (err) {
+    } catch {
       toast.error("Failed to delete notification");
     } finally {
       setDeletingId(null);
@@ -246,7 +245,7 @@ export function NotificationsListClient({
       {/* Top Header */}
       <PageHeader
         title="My Notifications"
-        description="Search, filter, edit, duplicate, and test your saved push notification configurations."
+        description="Search, filter, edit, duplicate, schedule, and test your saved push notification configurations."
         actions={
           <Link href="/notifications/new">
             <Button variant="glow" size="default" className="gap-2 font-bold shadow-blue-500/25">
@@ -256,6 +255,9 @@ export function NotificationsListClient({
           </Link>
         }
       />
+
+      {/* Scheduled Notifications Card */}
+      <ScheduledNotificationsCard />
 
       {/* Filter and Search Bar */}
       <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs space-y-3">
@@ -416,39 +418,64 @@ export function NotificationsListClient({
               </div>
 
               {/* Bottom Actions Bar */}
-              <div className="pt-3 border-t border-border/60 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
+              <div className="pt-3 border-t border-border/60 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <Button
                     variant="glow"
                     size="sm"
-                    onClick={() => handleTest(notif.id)}
+                    onClick={() => handleTest(notif.id, 0)}
                     disabled={testingId === notif.id}
                     className="gap-1.5"
                   >
                     <Send className="h-3.5 w-3.5" />
-                    <span>{testingId === notif.id ? "Sending..." : "Test"}</span>
+                    <span>{testingId === notif.id ? "Sending..." : "Test Now"}</span>
                   </Button>
 
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleTest(notif.id, 10)}
+                    disabled={testingId === notif.id}
+                    className="gap-1 text-xs"
+                    title="Test Push in 10 Seconds"
+                  >
+                    <Clock className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>10s</span>
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleTest(notif.id, 30)}
+                    disabled={testingId === notif.id}
+                    className="gap-1 text-xs"
+                    title="Test Push in 30 Seconds"
+                  >
+                    <Clock className="h-3.5 w-3.5 text-indigo-400" />
+                    <span>30s</span>
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleTest(notif.id, 60)}
+                    disabled={testingId === notif.id}
+                    className="gap-1 text-xs"
+                    title="Test Push in 1 Minute"
+                  >
+                    <Clock className="h-3.5 w-3.5 text-purple-400" />
+                    <span>1m</span>
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-1.5">
                   <Link href={`/notifications/${notif.id}`}>
                     <Button variant="outline" size="sm" className="gap-1.5">
                       <Edit className="h-3.5 w-3.5" />
                       <span>Edit</span>
                     </Button>
                   </Link>
-                </div>
 
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleMakeTemplate(notif)}
-                    disabled={templatingId === notif.id}
-                    className="gap-1.5 text-muted-foreground hover:text-foreground"
-                    title="Save this notification as a private template"
-                  >
-                    <Bookmark className="h-3.5 w-3.5 text-purple-500" />
-                    <span>{templatingId === notif.id ? "Saving..." : "Save as Template"}</span>
-                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -457,8 +484,8 @@ export function NotificationsListClient({
                     title="Duplicate Notification"
                   >
                     <Copy className="h-3.5 w-3.5" />
-                    <span>Copy</span>
                   </Button>
+
                   <Button
                     variant="outline"
                     size="sm"
@@ -468,7 +495,6 @@ export function NotificationsListClient({
                     title="Delete Notification"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                    <span>Delete</span>
                   </Button>
                 </div>
               </div>

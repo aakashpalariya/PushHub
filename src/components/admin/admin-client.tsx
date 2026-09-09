@@ -58,6 +58,7 @@ export interface AdminUser {
   id: string;
   name: string;
   email: string;
+  dateOfBirth?: string | null;
   isAdmin: boolean;
   isActive: boolean;
   createdAt: string;
@@ -603,6 +604,12 @@ export function AdminClient({
                                   {u.name} {isSelf && <span className="text-xs text-primary font-normal">(You)</span>}
                                 </p>
                                 <p className="text-xs text-muted-foreground font-mono">{u.email}</p>
+                                {u.dateOfBirth && (
+                                  <div className="text-[11px] text-muted-foreground flex items-center gap-1 font-mono mt-0.5">
+                                    <Calendar className="h-3 w-3 text-purple-500/70" />
+                                    <span>DOB: {u.dateOfBirth}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </TableCell>
@@ -774,6 +781,12 @@ export function AdminClient({
                             <p className="text-xs text-muted-foreground font-mono break-all select-all">
                               {u.email}
                             </p>
+                            {u.dateOfBirth && (
+                              <div className="text-[11px] text-muted-foreground flex items-center gap-1 font-mono mt-0.5">
+                                <Calendar className="h-3 w-3 text-purple-500/70" />
+                                <span>DOB: {u.dateOfBirth}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -1300,6 +1313,10 @@ export function AdminClient({
                     <span className="text-rose-500">Deactivated / Suspended</span>
                   )}
                 </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Date of Birth:</span>
+                <span className="font-bold text-foreground font-mono">{inspectUser.dateOfBirth || "Not recorded"}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Role:</span>

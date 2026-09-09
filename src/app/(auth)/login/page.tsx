@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Lock, Mail, ArrowRight, AlertCircle } from "lucide-react";
+import { Lock, Mail, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
 
-  // 5-click Admin access easter egg
+  // 5-click Admin access easter egg (silent navigation)
   const [logoClicks, setLogoClicks] = useState(0);
   const [lastClickTime, setLastClickTime] = useState(0);
 
@@ -25,7 +25,6 @@ export default function LoginPage() {
     const now = Date.now();
     let currentClicks = logoClicks;
 
-    // Reset counter if more than 3 seconds passed
     if (now - lastClickTime > 3000) {
       currentClicks = 1;
     } else {
@@ -35,13 +34,8 @@ export default function LoginPage() {
     setLastClickTime(now);
     setLogoClicks(currentClicks);
 
-    if (currentClicks === 3) {
-      toast.info("⚡ 2 more taps to enter Administrator Portal...");
-    } else if (currentClicks === 4) {
-      toast.info("⚡ 1 more tap to enter Administrator Portal...");
-    } else if (currentClicks >= 5) {
+    if (currentClicks >= 5) {
       setLogoClicks(0);
-      toast.info("👑 Opening Administrator Portal...");
       router.push("/admin");
     }
   };
@@ -106,7 +100,6 @@ export default function LoginPage() {
       {/* Brand Header with 5-click easter egg for Admin */}
       <div
         onClick={handleLogoClick}
-        title="PushHub (Click 5 times for Admin Access)"
         className="flex items-center gap-3 mb-8 cursor-pointer select-none active:scale-95 transition-transform group"
       >
         <div
@@ -154,9 +147,12 @@ export default function LoginPage() {
 
           <FormField label="Password" error={fieldErrors.password} required>
             <div className="flex items-center justify-end mb-1">
-              <span className="text-xs text-muted-foreground hover:underline cursor-pointer">
+              <Link
+                href="/forgot-password"
+                className="text-xs text-primary font-medium hover:underline transition-colors"
+              >
                 Forgot password?
-              </span>
+              </Link>
             </div>
             <div className="relative">
               <Lock className="h-4 w-4 absolute left-3.5 top-3.5 text-muted-foreground" />

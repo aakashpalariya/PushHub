@@ -53,6 +53,7 @@ export default async function StandaloneAdminPage() {
         id: true,
         name: true,
         email: true,
+        dateOfBirth: true,
         isAdmin: true,
         isActive: true,
         createdAt: true,

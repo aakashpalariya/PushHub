@@ -18,7 +18,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { name, email, password } = result.data;
+    const { name, email, dateOfBirth, password } = result.data;
     const existing = await prisma.user.findUnique({
       where: { email: email.toLowerCase() },
     });
@@ -36,11 +36,13 @@ export async function POST(req: Request) {
         name,
         email: email.toLowerCase(),
         passwordHash,
+        dateOfBirth: dateOfBirth.trim(),
       },
       select: {
         id: true,
         name: true,
         email: true,
+        dateOfBirth: true,
         isAdmin: true,
         createdAt: true,
       },

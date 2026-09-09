@@ -3,17 +3,18 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Lock, Mail, User, ArrowRight, AlertCircle } from "lucide-react";
+import { Lock, Mail, User, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
+import { DatePicker } from "@/components/ui/date-picker";
 import { toast } from "@/components/ui/custom-toaster";
-import { cn } from "@/lib/utils";
 
 export default function SignupPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,6 +22,7 @@ export default function SignupPage() {
   const [fieldErrors, setFieldErrors] = useState<{
     name?: string;
     email?: string;
+    dateOfBirth?: string;
     password?: string;
     confirmPassword?: string;
   }>({});
@@ -29,6 +31,7 @@ export default function SignupPage() {
     const errs: {
       name?: string;
       email?: string;
+      dateOfBirth?: string;
       password?: string;
       confirmPassword?: string;
     } = {};
@@ -41,6 +44,10 @@ export default function SignupPage() {
       errs.email = "Email address is required";
     } else if (!/^\S+@\S+\.\S+$/.test(email)) {
       errs.email = "Please enter a valid email address";
+    }
+
+    if (!dateOfBirth.trim()) {
+      errs.dateOfBirth = "Date of birth is required for password recovery";
     }
 
     if (!password || password.length < 6) {
@@ -69,7 +76,7 @@ export default function SignupPage() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, confirmPassword }),
+        body: JSON.stringify({ name, email, dateOfBirth, password, confirmPassword }),
       });
 
       const data = await res.json();
@@ -77,6 +84,8 @@ export default function SignupPage() {
         const errorMsg = data.error || "Registration failed";
         if (errorMsg.toLowerCase().includes("email")) {
           setFieldErrors({ email: errorMsg });
+        } else if (errorMsg.toLowerCase().includes("date of birth") || errorMsg.toLowerCase().includes("dob")) {
+          setFieldErrors({ dateOfBirth: errorMsg });
         } else if (errorMsg.toLowerCase().includes("password")) {
           setFieldErrors({ password: errorMsg });
         } else if (errorMsg.toLowerCase().includes("name")) {
@@ -154,6 +163,23 @@ export default function SignupPage() {
                 error={Boolean(fieldErrors.email)}
               />
             </div>
+          </FormField>
+
+          <FormField
+            label="Date of Birth (used for password reset)"
+            error={fieldErrors.dateOfBirth}
+            required
+          >
+            <DatePicker
+              value={dateOfBirth}
+              onChange={(val) => {
+                setDateOfBirth(val);
+                if (fieldErrors.dateOfBirth)
+                  setFieldErrors((prev) => ({ ...prev, dateOfBirth: undefined }));
+              }}
+              placeholder="Jul 12, 2021"
+              error={Boolean(fieldErrors.dateOfBirth)}
+            />
           </FormField>
 
           <FormField label="Password" error={fieldErrors.password} required>

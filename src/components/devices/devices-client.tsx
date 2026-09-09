@@ -1,23 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Smartphone,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
   Send,
   Trash2,
-  Share,
   HelpCircle,
   Shield,
   Layers,
   Radio,
-  ExternalLink,
   Laptop,
-  Flame,
-  Info,
+  CheckCircle2,
+  Wifi,
+  WifiOff,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +34,6 @@ export function DevicesClient({
   const router = useRouter();
   const confirm = useConfirm();
   const {
-    isSupported,
     permission,
     isSubscribed,
     isLoading,
@@ -45,25 +41,50 @@ export function DevicesClient({
     subscribeDevice,
     unsubscribeDevice,
     deviceInfo,
+    deviceId,
+    subscription,
   } = usePushSubscription();
 
   const [devices, setDevices] = useState<PushDevice[]>(initialDevices);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
+  const refreshDevices = useCallback(async () => {
+    try {
+      const res = await fetch("/api/devices");
+      if (res.ok) {
+        const data = await res.json();
+        setDevices(data.devices || []);
+      }
+    } catch {
+      // Ignore background refresh errors
+    }
+  }, []);
+
+  // Poll devices list every 5 seconds to track real-time online/offline presence changes
+  useEffect(() => {
+    const timer = setInterval(() => {
+      refreshDevices();
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [refreshDevices]);
+
   const handleSubscribeToggle = async () => {
     if (isSubscribed) {
       const ok = await unsubscribeDevice();
-      if (ok) router.refresh();
+      if (ok) {
+        await refreshDevices();
+        router.refresh();
+      }
     } else {
+      if (devices.length >= 3) {
+        toast.error("Device limit reached (max 3 devices allowed). Disconnect an existing device first.");
+        return;
+      }
       const ok = await subscribeDevice();
       if (ok) {
-        // Fetch refreshed devices list
-        const res = await fetch("/api/devices");
-        if (res.ok) {
-          const data = await res.json();
-          setDevices(data.devices || []);
-        }
+        await refreshDevices();
+        router.refresh();
       }
     }
   };
@@ -84,12 +105,13 @@ export function DevicesClient({
     }
   };
 
-  const handleRemoveDevice = async (id: string) => {
+  const handleRemoveDevice = async (id: string, devName: string, isCurrentDevice: boolean) => {
     const confirmed = await confirm({
-      title: "Unregister Device",
-      description:
-        "Are you sure you want to unregister this device? It will no longer receive push notifications from this workspace until re-registered.",
-      confirmText: "Unregister Device",
+      title: "Disconnect Device",
+      description: isCurrentDevice
+        ? "Are you sure you want to disconnect this device? It will no longer receive push notifications until re-registered."
+        : `Are you sure you want to remotely disconnect "${devName}"? This device will be revoked from receiving push notifications.`,
+      confirmText: "Disconnect Device",
       variant: "destructive",
       icon: "trash",
     });
@@ -100,11 +122,14 @@ export function DevicesClient({
       const res = await fetch(`/api/devices/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to remove device");
 
-      toast.success("Device unregistered successfully");
+      toast.success(`Device "${devName}" disconnected successfully`);
       setDevices((prev) => prev.filter((d) => d.id !== id));
+      if (isCurrentDevice) {
+        await unsubscribeDevice().catch(() => {});
+      }
       router.refresh();
     } catch (err) {
-      toast.error("Failed to remove device");
+      toast.error("Failed to disconnect device");
     } finally {
       setRemovingId(null);
     }
@@ -114,14 +139,14 @@ export function DevicesClient({
     <div className="space-y-6 sm:space-y-8">
       {/* Page Header */}
       <PageHeader
-        title="Devices & Web Push Setup"
-        description="Manage connected browsers, inspect W3C Push capabilities, and verify real device deliveries."
+        title="Devices & Multi-Device Management"
+        description="Monitor connected devices, inspect live online status (max 3 devices), and remotely manage sessions."
         actions={
           <Button
             variant={isSubscribed ? "outline" : "glow"}
             size="default"
             onClick={handleSubscribeToggle}
-            disabled={isLoading}
+            disabled={isLoading || (!isSubscribed && devices.length >= 3)}
             className="gap-2 font-bold"
           >
             <Radio className="h-4 w-4 animate-pulse" />
@@ -129,12 +154,58 @@ export function DevicesClient({
               {isLoading
                 ? "Checking..."
                 : isSubscribed
-                ? "Unsubscribe This Device"
+                ? "Disconnect This Device"
+                : devices.length >= 3
+                ? "Device Limit Reached (3/3)"
                 : "Subscribe This Device"}
             </span>
           </Button>
         }
       />
+
+      {/* Device Capacity & Limit Banner */}
+      <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">
+              <Smartphone className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-foreground">
+                  Active Login Devices ({devices.length} / 3 Max)
+                </h3>
+                {devices.length >= 3 ? (
+                  <Badge variant="warning" className="text-xs">
+                    Limit Reached
+                  </Badge>
+                ) : (
+                  <Badge variant="success" className="text-xs">
+                    {3 - devices.length} Available
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                One user account can be connected to a maximum of 3 active devices simultaneously.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="w-full h-2 rounded-full bg-secondary/50 overflow-hidden">
+          <div
+            className={`h-full transition-all duration-300 ${
+              devices.length >= 3
+                ? "bg-amber-500"
+                : devices.length === 2
+                ? "bg-indigo-500"
+                : "bg-emerald-500"
+            }`}
+            style={{ width: `${(devices.length / 3) * 100}%` }}
+          />
+        </div>
+      </div>
 
       {/* Permission & Capability Center */}
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-6 space-y-6">
@@ -186,7 +257,7 @@ export function DevicesClient({
 
           <div className="p-3 sm:p-3.5 rounded-xl bg-secondary/30 border border-border/70 space-y-1.5 min-w-0">
             <span className="text-[11px] font-bold text-muted-foreground uppercase truncate block">
-              Subscription
+              This Device Status
             </span>
             <div>
               {isSubscribed ? (
@@ -378,10 +449,10 @@ export function DevicesClient({
         <div className="flex items-center justify-between border-b border-border/60 pb-3">
           <div>
             <h3 className="text-lg font-bold text-foreground">
-              Registered Devices ({devices.length})
+              Registered Devices ({devices.length} / 3)
             </h3>
             <p className="text-xs text-muted-foreground">
-              Devices linked to your account that receive Web Push signals
+              All devices registered under your account with real-time connection status
             </p>
           </div>
         </div>
@@ -405,64 +476,92 @@ export function DevicesClient({
           />
         ) : (
           <div className="space-y-3">
-            {devices.map((dev) => (
-              <div
-                key={dev.id}
-                className="p-4 rounded-xl bg-secondary/20 border border-border/70 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-              >
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className="p-2.5 rounded-xl bg-primary/10 text-primary flex-shrink-0 mt-0.5">
-                    {dev.platform === "Windows" || dev.platform === "macOS" || dev.platform === "Linux" ? (
-                      <Laptop className="h-5 w-5" />
-                    ) : (
-                      <Smartphone className="h-5 w-5" />
-                    )}
-                  </div>
-                  <div className="space-y-1 min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-bold text-sm text-foreground break-words">
-                        {dev.deviceName || `${dev.browser} on ${dev.platform}`}
-                      </span>
-                      <Badge variant="success" size="sm" className="flex-shrink-0">
-                        Connected
-                      </Badge>
-                    </div>
-                    <p className="text-xs font-mono text-muted-foreground truncate">
-                      Endpoint: {dev.endpoint.slice(0, 48)}...
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] text-muted-foreground pt-0.5">
-                      <span>Registered {formatDate(dev.createdAt)}</span>
-                      <span>·</span>
-                      <span>Last active: {formatDate(dev.updatedAt)}</span>
-                    </div>
-                  </div>
-                </div>
+            {devices.map((dev) => {
+              const isCurrentDevice = Boolean(
+                (deviceId && dev.deviceId === deviceId) ||
+                  (subscription?.endpoint && dev.endpoint === subscription.endpoint)
+              );
+              const devName = dev.deviceName || `${dev.browser} on ${dev.platform}`;
+              const isOnline = Boolean(dev.isOnline);
 
-                <div className="flex items-center gap-2 self-end sm:self-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleTestDevice(dev.id)}
-                    disabled={testingId === dev.id}
-                    className="gap-1.5"
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                    <span>{testingId === dev.id ? "Pinging..." : "Test Ping"}</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRemoveDevice(dev.id)}
-                    disabled={removingId === dev.id}
-                    className="gap-1.5 text-rose-600 dark:text-rose-400 border-rose-500/25 hover:bg-rose-500/10"
-                    title="Remove device"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    <span>Remove</span>
-                  </Button>
+              return (
+                <div
+                  key={dev.id}
+                  className={`p-4 rounded-xl border transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                    isCurrentDevice
+                      ? "bg-primary/5 border-primary/40"
+                      : "bg-secondary/20 border-border/70"
+                  }`}
+                >
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <div className="p-2.5 rounded-xl bg-primary/10 text-primary flex-shrink-0 mt-0.5">
+                      {dev.platform === "Windows" || dev.platform === "macOS" || dev.platform === "Linux" ? (
+                        <Laptop className="h-5 w-5" />
+                      ) : (
+                        <Smartphone className="h-5 w-5" />
+                      )}
+                    </div>
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-sm text-foreground break-words">
+                          {devName}
+                        </span>
+                        {isCurrentDevice && (
+                          <Badge variant="default" size="sm" className="flex-shrink-0 font-bold">
+                            This Device
+                          </Badge>
+                        )}
+                        {isOnline ? (
+                          <Badge variant="success" size="sm" className="flex-shrink-0 gap-1">
+                            <Wifi className="h-3 w-3 animate-pulse" />
+                            <span>Online &amp; Active</span>
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" size="sm" className="flex-shrink-0 gap-1 text-muted-foreground">
+                            <WifiOff className="h-3 w-3" />
+                            <span>Disconnected / Offline</span>
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs font-mono text-muted-foreground truncate">
+                        ID: {dev.deviceId || dev.id.slice(0, 16)}... | Endpoint: {dev.endpoint.slice(0, 32)}...
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] text-muted-foreground pt-0.5">
+                        <span>Registered {formatDate(dev.createdAt)}</span>
+                        <span>·</span>
+                        <span>
+                          Last active: {dev.lastActiveAt ? formatDate(dev.lastActiveAt) : formatDate(dev.updatedAt)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTestDevice(dev.id)}
+                      disabled={testingId === dev.id}
+                      className="gap-1.5"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      <span>{testingId === dev.id ? "Pinging..." : "Test Ping"}</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRemoveDevice(dev.id, devName, isCurrentDevice)}
+                      disabled={removingId === dev.id}
+                      className="gap-1.5 text-rose-600 dark:text-rose-400 border-rose-500/25 hover:bg-rose-500/10"
+                      title="Disconnect device"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>Disconnect</span>
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getAuthSession } from "@/lib/auth/session";
 import { sendWebPushToSubscription } from "@/lib/push/webpush";
 import { notificationConfigSchema } from "@/lib/validation/notification";
+import { startScheduler } from "@/lib/push/scheduler";
 
 export async function POST(req: Request) {
   const session = await getAuthSession();
@@ -11,9 +12,15 @@ export async function POST(req: Request) {
   }
 
   try {
-    const body = await req.json();
-    const result = notificationConfigSchema.safeParse(body);
+    const rawBody = await req.json();
 
+    // Check optional targetMode and delaySeconds parameters
+    const targetMode = rawBody.targetMode || "all";
+    const targetDeviceId = rawBody.targetDeviceId || null;
+    const targetSubscriptionId = rawBody.targetSubscriptionId || null;
+    const delaySeconds = rawBody.delaySeconds ? parseInt(String(rawBody.delaySeconds), 10) : 0;
+
+    const result = notificationConfigSchema.safeParse(rawBody);
     if (!result.success) {
       return NextResponse.json(
         { error: result.error.errors[0]?.message || "Invalid payload" },
@@ -22,20 +29,6 @@ export async function POST(req: Request) {
     }
 
     const val = result.data;
-    const subscriptions = await prisma.pushSubscription.findMany({
-      where: { userId: session.userId },
-    });
-
-    if (subscriptions.length === 0) {
-      return NextResponse.json(
-        {
-          error: "No subscribed devices found for your account. Please click 'Enable & Subscribe Device' first.",
-          requiresSubscription: true,
-        },
-        { status: 400 }
-      );
-    }
-
     const activeTheme = val.theme || ((val.data as { theme?: string })?.theme) || "dark";
 
     const pushPayload = {
@@ -61,6 +54,88 @@ export async function POST(req: Request) {
       },
     };
 
+    // If delaySeconds > 0, delegate to scheduling engine!
+    if (delaySeconds > 0) {
+      const scheduledAt = new Date(Date.now() + delaySeconds * 1000);
+      const scheduledItem = await prisma.scheduledNotification.create({
+        data: {
+          userId: session.userId,
+          name: val.name || val.title,
+          title: val.title,
+          body: val.body,
+          payload: JSON.stringify(pushPayload),
+          targetMode,
+          targetDeviceId,
+          targetSubscriptionId,
+          delaySeconds,
+          scheduledAt,
+          status: "pending",
+        },
+      });
+
+      startScheduler();
+
+      return NextResponse.json({
+        success: true,
+        isScheduled: true,
+        message: `Push notification scheduled to deliver in ${delaySeconds} second(s)`,
+        scheduledItem,
+      });
+    }
+
+    // Direct Instant Delivery
+    let subscriptions: Array<{
+      id: string;
+      endpoint: string;
+      p256dh: string;
+      auth: string;
+      deviceName?: string | null;
+      browser?: string | null;
+      platform?: string | null;
+    }> = [];
+
+    if (targetSubscriptionId) {
+      const sub = await prisma.pushSubscription.findFirst({
+        where: { id: targetSubscriptionId, userId: session.userId },
+      });
+      if (sub) subscriptions = [sub];
+    } else if (targetDeviceId) {
+      const sub = await prisma.pushSubscription.findFirst({
+        where: { deviceId: targetDeviceId, userId: session.userId },
+      });
+      if (sub) subscriptions = [sub];
+    } else if (targetMode === "active") {
+      // Find online device or most recently active device
+      const onlineSub = await prisma.pushSubscription.findFirst({
+        where: { userId: session.userId, isOnline: true },
+        orderBy: { lastActiveAt: "desc" },
+      });
+      if (onlineSub) {
+        subscriptions = [onlineSub];
+      } else {
+        const recentSub = await prisma.pushSubscription.findFirst({
+          where: { userId: session.userId },
+          orderBy: { lastActiveAt: "desc" },
+        });
+        if (recentSub) subscriptions = [recentSub];
+      }
+    } else {
+      // "all" mode
+      subscriptions = await prisma.pushSubscription.findMany({
+        where: { userId: session.userId },
+      });
+    }
+
+    if (subscriptions.length === 0) {
+      return NextResponse.json(
+        {
+          error: "No matching target devices found for your account. Please check device subscription.",
+          requiresSubscription: true,
+        },
+        { status: 400 }
+      );
+    }
+
     let sentCount = 0;
     let failedCount = 0;
 
@@ -84,7 +159,7 @@ export async function POST(req: Request) {
           userId: session.userId,
           title: val.title,
           payload: JSON.stringify(pushPayload),
-          device: sub.deviceName || sub.browser || "Unknown Device",
+          device: sub.deviceName || sub.browser || "Target Device",
           platform: sub.platform || "Web",
           status,
           error: res.error || null,
@@ -97,6 +172,7 @@ export async function POST(req: Request) {
       message: `Push delivered to ${sentCount} device(s)${failedCount > 0 ? `, ${failedCount} failed` : ""}`,
       sentCount,
       failedCount,
+      targetMode,
       totalDevices: subscriptions.length,
     });
   } catch (error) {

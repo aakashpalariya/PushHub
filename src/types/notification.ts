@@ -36,7 +36,31 @@ export interface PushDevice {
   browser?: string | null;
   platform?: string | null;
   deviceName?: string | null;
+  deviceId?: string | null;
   userAgent?: string | null;
+  isActive?: boolean;
+  isOnline?: boolean;
+  lastActiveAt?: string | Date;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+}
+
+export interface ScheduledNotificationItem {
+  id: string;
+  userId: string;
+  notificationId?: string | null;
+  name: string;
+  title: string;
+  body: string;
+  payload: string;
+  targetMode: "all" | "active" | "current" | "specific";
+  targetDeviceId?: string | null;
+  targetSubscriptionId?: string | null;
+  delaySeconds: number;
+  scheduledAt: string | Date;
+  status: "pending" | "sent" | "failed" | "cancelled";
+  sentAt?: string | Date | null;
+  error?: string | null;
   createdAt: string | Date;
   updatedAt: string | Date;
 }

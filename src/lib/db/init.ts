@@ -86,12 +86,19 @@ export async function ensureDatabaseReady(prisma: PrismaClient): Promise<void> {
           "name" TEXT NOT NULL,
           "email" TEXT NOT NULL,
           "passwordHash" TEXT NOT NULL,
+          "dateOfBirth" TEXT,
           "isAdmin" BOOLEAN NOT NULL DEFAULT false,
           "isActive" BOOLEAN NOT NULL DEFAULT true,
           "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
       `);
+
+      try {
+        await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN "dateOfBirth" TEXT;`);
+      } catch {
+        // column already exists
+      }
 
       await prisma.$executeRawUnsafe(`
         CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "User"("email");
@@ -196,7 +203,7 @@ export async function ensureDatabaseReady(prisma: PrismaClient): Promise<void> {
         CREATE INDEX IF NOT EXISTS "Template_isSystemTemplate_idx" ON "Template"("isSystemTemplate");
       `);
 
-      // 3. Ensure Default Admin Account exists
+      // 3. Ensure Default Admin & Demo Accounts exist
       const adminCount = await prisma.user.count({
         where: { email: "admin@pushhub.dev" },
       });
@@ -208,11 +215,31 @@ export async function ensureDatabaseReady(prisma: PrismaClient): Promise<void> {
             name: "Admin Marcus",
             email: "admin@pushhub.dev",
             passwordHash,
+            dateOfBirth: "01/01/1995",
             isAdmin: true,
             isActive: true,
           },
         });
         console.log("[PushHub DB] Seeded default admin user (admin@pushhub.dev)");
+      }
+
+      const demoUser = await prisma.user.findUnique({
+        where: { email: "demo@pushhub.app" },
+      });
+
+      if (!demoUser) {
+        const demoHash = await bcrypt.hash("Demo@123", 10);
+        await prisma.user.create({
+          data: {
+            name: "Demo User",
+            email: "demo@pushhub.app",
+            passwordHash: demoHash,
+            dateOfBirth: "01/01/2001",
+            isAdmin: false,
+            isActive: true,
+          },
+        });
+        console.log("[PushHub DB] Seeded default demo user (demo@pushhub.app)");
       }
     } catch (error) {
       console.error("[PushHub DB] ensureDatabaseReady error:", error);

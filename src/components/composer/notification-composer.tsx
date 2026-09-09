@@ -22,9 +22,13 @@ import {
   AlertCircle,
   Shield,
   Bookmark,
+  Clock,
+  Target,
+  Timer,
 } from "lucide-react";
 import { toast } from "@/components/ui/custom-toaster";
 import { NotificationConfig, NotificationAction } from "@/types/notification";
+import { ScheduledNotificationsCard } from "@/components/notifications/scheduled-notifications-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -86,6 +90,9 @@ export function NotificationComposer({
   const [config, setConfig] = useState<NotificationConfig>(
     initialData || defaultNotification
   );
+
+  const [targetMode, setTargetMode] = useState<"all" | "active" | "current">("all");
+  const [delaySeconds, setDelaySeconds] = useState<number>(0);
 
   const [customDataText, setCustomDataText] = useState<string>(
     JSON.stringify(config.data || {}, null, 2)
@@ -432,6 +439,8 @@ export function NotificationComposer({
       const payloadToSend = {
         ...config,
         theme: activeNotificationTheme,
+        targetMode,
+        delaySeconds,
         data: {
           ...(config.data || {}),
           theme: activeNotificationTheme,
@@ -442,7 +451,7 @@ export function NotificationComposer({
         },
       };
 
-      // Send real push payload via Next.js backend to all user devices
+      // Send real push payload via Next.js backend
       const res = await fetch("/api/push/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -648,6 +657,137 @@ export function NotificationComposer({
               </FormField>
             </div>
           </div>
+
+          {/* 1.5. Target Device & Delivery Timing (Scheduling) */}
+          <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 space-y-5">
+            <div className="flex items-center gap-2 text-base font-bold text-foreground border-b border-border/60 pb-3">
+              <Target className="h-5 w-5 text-emerald-500" />
+              <span>Target Device &amp; Delivery Scheduling</span>
+            </div>
+
+            <div className="space-y-4">
+              <FormField
+                label="Target Device Routing"
+                helperText="Select which of your connected devices will receive this push notification."
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setTargetMode("all")}
+                    className={cn(
+                      "p-3 rounded-xl border text-left space-y-1 transition-all",
+                      targetMode === "all"
+                        ? "bg-primary/10 border-primary text-foreground shadow-xs"
+                        : "bg-secondary/20 border-border/70 text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <span className="text-xs font-bold block text-foreground">All Devices</span>
+                    <span className="text-[11px] text-muted-foreground block">
+                      Broadcast push to all registered devices
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTargetMode("active")}
+                    className={cn(
+                      "p-3 rounded-xl border text-left space-y-1 transition-all",
+                      targetMode === "active"
+                        ? "bg-emerald-500/10 border-emerald-500 text-foreground shadow-xs"
+                        : "bg-secondary/20 border-border/70 text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <span className="text-xs font-bold block text-emerald-400">Active Device Only</span>
+                    <span className="text-[11px] text-muted-foreground block">
+                      Send to device currently active / open
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTargetMode("current")}
+                    className={cn(
+                      "p-3 rounded-xl border text-left space-y-1 transition-all",
+                      targetMode === "current"
+                        ? "bg-blue-500/10 border-blue-500 text-foreground shadow-xs"
+                        : "bg-secondary/20 border-border/70 text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <span className="text-xs font-bold block text-blue-400">This Device Only</span>
+                    <span className="text-[11px] text-muted-foreground block">
+                      Send to current browser window
+                    </span>
+                  </button>
+                </div>
+              </FormField>
+
+              <FormField
+                label="Delivery Timing (Delay / Schedule)"
+                helperText="Schedule delayed delivery. Notification will send via server Web Push even if tab/app is closed."
+              >
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDelaySeconds(0)}
+                    className={cn(
+                      "py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all",
+                      delaySeconds === 0
+                        ? "bg-primary text-white border-primary shadow-xs"
+                        : "bg-secondary/30 border-border text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    <span>Instant</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDelaySeconds(10)}
+                    className={cn(
+                      "py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all",
+                      delaySeconds === 10
+                        ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                        : "bg-secondary/30 border-border text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>10 Seconds</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDelaySeconds(30)}
+                    className={cn(
+                      "py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all",
+                      delaySeconds === 30
+                        ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                        : "bg-secondary/30 border-border text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>30 Seconds</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDelaySeconds(60)}
+                    className={cn(
+                      "py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all",
+                      delaySeconds === 60
+                        ? "bg-purple-600 text-white border-purple-600 shadow-xs"
+                        : "bg-secondary/30 border-border text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>1 Minute</span>
+                  </button>
+                </div>
+              </FormField>
+            </div>
+          </div>
+
+          {/* Pending Scheduled Notifications Card */}
+          <ScheduledNotificationsCard />
 
           {/* 2. Visuals & Assets */}
           <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 space-y-4">

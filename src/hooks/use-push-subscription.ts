@@ -1,7 +1,18 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
+
+function getOrCreateDeviceId(): string {
+  if (typeof window === "undefined") return "server_device";
+  const STORAGE_KEY = "pushhub_device_id";
+  let deviceId = localStorage.getItem(STORAGE_KEY);
+  if (!deviceId) {
+    deviceId = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    localStorage.setItem(STORAGE_KEY, deviceId);
+  }
+  return deviceId;
+}
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -44,6 +55,10 @@ export function usePushSubscription() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [subscription, setSubscription] = useState<PushSubscription | null>(null);
   const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
+  const [deviceId, setDeviceId] = useState<string>("");
+
+  const subscriptionRef = useRef<PushSubscription | null>(null);
+  const deviceIdRef = useRef<string>("");
 
   const [capabilities, setCapabilities] = useState({
     notifications: false,
@@ -54,6 +69,39 @@ export function usePushSubscription() {
     badge: false,
     standalone: false,
   });
+
+  // Ensure deviceId is initialized on client
+  useEffect(() => {
+    const id = getOrCreateDeviceId();
+    setDeviceId(id);
+    deviceIdRef.current = id;
+  }, []);
+
+  const sendHeartbeat = useCallback(async (isDisconnect = false) => {
+    try {
+      const endpoint = subscriptionRef.current?.endpoint;
+      const currentDeviceId = deviceIdRef.current;
+
+      const payload = JSON.stringify({
+        endpoint,
+        deviceId: currentDeviceId,
+        status: isDisconnect ? "disconnect" : "active",
+      });
+
+      if (isDisconnect && typeof navigator !== "undefined" && navigator.sendBeacon) {
+        const blob = new Blob([payload], { type: "application/json" });
+        navigator.sendBeacon("/api/push/heartbeat", blob);
+      } else {
+        await fetch("/api/push/heartbeat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: payload,
+        });
+      }
+    } catch {
+      // Ignore background heartbeat errors silently
+    }
+  }, []);
 
   const checkSubscription = useCallback(async () => {
     if (typeof window === "undefined") return;
@@ -87,7 +135,6 @@ export function usePushSubscription() {
     setPermission(Notification.permission);
 
     try {
-      // Register or get existing service worker registration
       const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
       setSwRegistration(reg);
 
@@ -95,20 +142,44 @@ export function usePushSubscription() {
       if (existingSub) {
         setIsSubscribed(true);
         setSubscription(existingSub);
+        subscriptionRef.current = existingSub;
+        // Trigger heartbeat on check
+        sendHeartbeat(false);
       } else {
         setIsSubscribed(false);
         setSubscription(null);
+        subscriptionRef.current = null;
       }
     } catch (err) {
       console.error("Failed checking push subscription state:", err);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [sendHeartbeat]);
 
   useEffect(() => {
     checkSubscription();
   }, [checkSubscription]);
+
+  // Periodic Heartbeat loop (every 15s) and page unload beacon
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const interval = setInterval(() => {
+      sendHeartbeat(false);
+    }, 15000);
+
+    const handleUnload = () => {
+      sendHeartbeat(true);
+    };
+
+    window.addEventListener("beforeunload", handleUnload);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("beforeunload", handleUnload);
+    };
+  }, [sendHeartbeat]);
 
   const subscribeDevice = async () => {
     if (!isSupported) {
@@ -152,8 +223,10 @@ export function usePushSubscription() {
         applicationServerKey,
       });
 
-      // 5. Send subscription to backend
+      // 5. Send subscription to backend along with persistent deviceId
       const deviceInfo = detectPlatformAndBrowser();
+      const currentDeviceId = deviceId || getOrCreateDeviceId();
+
       const saveRes = await fetch("/api/push/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -163,17 +236,27 @@ export function usePushSubscription() {
           platform: deviceInfo.platform,
           deviceName: deviceInfo.deviceName,
           userAgent: deviceInfo.userAgent,
+          deviceId: currentDeviceId,
         }),
       });
 
+      const resData = await saveRes.json();
+
       if (!saveRes.ok) {
-        const errorData = await saveRes.json();
-        throw new Error(errorData.error || "Failed to save device subscription");
+        if (resData.limitReached) {
+          // Clean up browser subscription if backend rejected due to 3-device limit
+          await pushSub.unsubscribe().catch(() => {});
+          toast.error(resData.error || "Device limit reached (max 3 devices allowed). Please disconnect an existing device.");
+          return false;
+        }
+        throw new Error(resData.error || "Failed to save device subscription");
       }
 
       setIsSubscribed(true);
       setSubscription(pushSub);
+      subscriptionRef.current = pushSub;
       toast.success("Device connected! You can now send real Web Push notifications.");
+      sendHeartbeat(false);
       return true;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to subscribe device";
@@ -199,8 +282,11 @@ export function usePushSubscription() {
         body: JSON.stringify({ endpoint }),
       });
 
+      sendHeartbeat(true);
+
       setIsSubscribed(false);
       setSubscription(null);
+      subscriptionRef.current = null;
       toast.success("Device unsubscribed successfully");
       return true;
     } catch (err) {
@@ -219,6 +305,7 @@ export function usePushSubscription() {
     isLoading,
     subscription,
     capabilities,
+    deviceId,
     subscribeDevice,
     unsubscribeDevice,
     refreshStatus: checkSubscription,

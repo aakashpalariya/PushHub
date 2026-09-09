@@ -333,11 +333,16 @@ const systemTemplates = [
 import bcrypt from "bcryptjs";
 
 async function main() {
-  console.log("Seeding system templates...");
-  await prisma.template.deleteMany({
-    where: { isSystemTemplate: true },
-  });
+  console.log("Cleaning existing database records...");
+  await prisma.scheduledNotification.deleteMany({});
+  await prisma.notificationHistory.deleteMany({});
+  await prisma.pushSubscription.deleteMany({});
+  await prisma.notification.deleteMany({});
+  await prisma.template.deleteMany({});
+  await prisma.user.deleteMany({});
+  console.log("Database cleared successfully.");
 
+  console.log("Seeding system templates...");
   for (const t of systemTemplates) {
     await prisma.template.create({
       data: t,
@@ -347,25 +352,35 @@ async function main() {
 
   // Seed default admin account
   console.log("Seeding default administrator account...");
-  const passwordHash = await bcrypt.hash("adminPassword123!", 10);
+  const adminPasswordHash = await bcrypt.hash("adminPassword123!", 10);
 
-  for (const email of ["admin@pushhub.dev", "admin@pushlab.dev"]) {
-    const admin = await prisma.user.upsert({
-      where: { email },
-      update: {
-        name: "Admin Marcus",
-        passwordHash,
-        isAdmin: true,
-      },
-      create: {
-        name: "Admin Marcus",
-        email,
-        passwordHash,
-        isAdmin: true,
-      },
-    });
-    console.log(`Default admin account ready: ${admin.email} (isAdmin: ${admin.isAdmin})`);
-  }
+  const admin = await prisma.user.create({
+    data: {
+      name: "Admin Marcus",
+      email: "admin@pushhub.dev",
+      passwordHash: adminPasswordHash,
+      dateOfBirth: "01/01/1995",
+      isAdmin: true,
+      isActive: true,
+    },
+  });
+  console.log(`Default admin account ready: ${admin.email}`);
+
+  // Seed default demo user
+  console.log("Seeding default demo user account...");
+  const demoPasswordHash = await bcrypt.hash("Demo@123", 10);
+
+  const demoUser = await prisma.user.create({
+    data: {
+      name: "Demo User",
+      email: "demo@pushhub.app",
+      passwordHash: demoPasswordHash,
+      dateOfBirth: "01/01/2001",
+      isAdmin: false,
+      isActive: true,
+    },
+  });
+  console.log(`Default demo user account ready: ${demoUser.email} (DOB: ${demoUser.dateOfBirth})`);
 }
 
 main()
