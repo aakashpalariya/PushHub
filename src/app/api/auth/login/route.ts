@@ -26,8 +26,10 @@ export async function POST(req: Request) {
     });
 
     // Auto-create default administrator if attempting login on a freshly initialized database
+    const envAdminPassword = process.env.ADMIN_PASSWORD;
     if (!user && (normalizedEmail === "admin@pushhub.dev" || normalizedEmail === "admin@pushlab.dev")) {
-      const passwordHash = await hashPassword("adminPassword123!");
+      const initialPassword = envAdminPassword || "adminPassword123!";
+      const passwordHash = await hashPassword(initialPassword);
       user = await prisma.user.create({
         data: {
           name: "Admin Marcus",
@@ -46,7 +48,21 @@ export async function POST(req: Request) {
       );
     }
 
-    const isMatch = await comparePassword(password, user.passwordHash);
+    let isMatch = false;
+    if (user.isAdmin && envAdminPassword && password === envAdminPassword) {
+      isMatch = true;
+      const hashMatches = await comparePassword(password, user.passwordHash);
+      if (!hashMatches) {
+        const updatedHash = await hashPassword(password);
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { passwordHash: updatedHash },
+        });
+      }
+    } else {
+      isMatch = await comparePassword(password, user.passwordHash);
+    }
+
     if (!isMatch) {
       return NextResponse.json(
         { error: "Incorrect password. Please try again." },

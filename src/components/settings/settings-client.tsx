@@ -23,6 +23,7 @@ import {
   Moon,
   Laptop,
   Palette,
+  Share,
 } from "lucide-react";
 import { useTheme } from "@/components/theme/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,7 @@ export function SettingsClient({
 }) {
   const router = useRouter();
   const { theme, resolvedTheme, setTheme } = useTheme();
-  const { isInstallable, isInstalled, install } = usePWAInstall();
+  const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const { capabilities } = usePushSubscription();
   const [copiedKey, setCopiedKey] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -82,8 +83,8 @@ export function SettingsClient({
     <div className="space-y-6 sm:space-y-8">
       {/* Page Header */}
       <PageHeader
-        title="Settings & Environment"
-        description="Account profile, session security, PWA installation status, and developer Web Push credentials."
+        title="Settings & Configuration"
+        description="Account profile, session security, and developer Web Push credentials."
         actions={
           <Button
             variant="outline"
@@ -269,21 +270,21 @@ export function SettingsClient({
         </div>
       </div>
 
-      {/* 3. PWA Application Status */}
-      <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+      {/* 3. PWA Application Status - ONLY IN MOBILE VIEW */}
+      <div className="block md:hidden rounded-2xl border border-border bg-card p-5 sm:p-6 space-y-4 shadow-sm">
         <div className="flex items-center justify-between border-b border-border/60 pb-3">
           <div className="flex items-center gap-2">
             <Smartphone className="h-5 w-5 text-indigo-400" />
-            <h3 className="text-lg font-bold text-foreground">
+            <h3 className="text-base sm:text-lg font-bold text-foreground">
               PWA (Progressive Web App)
             </h3>
           </div>
           {isInstalled ? (
-            <Badge variant="success" className="gap-1">
-              <CheckCircle2 className="h-3 w-3" /> Installed (Standalone)
+            <Badge variant="success" className="gap-1 text-xs">
+              <CheckCircle2 className="h-3 w-3" /> Installed
             </Badge>
           ) : (
-            <Badge variant="outline">Browser Tab</Badge>
+            <Badge variant="outline" className="text-xs">Browser Tab</Badge>
           )}
         </div>
 
@@ -292,9 +293,26 @@ export function SettingsClient({
             Running PushHub as an installed PWA unlocks native standalone windows, improved background push responsiveness, and iOS Home Screen notification badge capabilities.
           </p>
 
+          {/* iOS Safari Home Screen Guide */}
+          {isIOS && !isInstalled && (
+            <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs space-y-2">
+              <p className="font-semibold text-blue-700 dark:text-blue-300">
+                To install on iOS Safari:
+              </p>
+              <div className="flex flex-col gap-1.5 text-[11px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  1. Tap <Share className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" /> <strong>Share</strong> in Safari toolbar
+                </span>
+                <span>2. Select <strong>&quot;Add to Home Screen&quot;</strong></span>
+                <span>3. Launch PushHub from your Home Screen</span>
+              </div>
+            </div>
+          )}
+
+          {/* Standard Android / Chromium Install Prompt */}
           {isInstallable && !isInstalled && (
-            <div className="pt-2">
-              <Button variant="glow" onClick={install} className="gap-2 text-xs font-bold">
+            <div className="pt-1">
+              <Button variant="glow" onClick={install} className="w-full gap-2 text-xs font-bold">
                 <Download className="h-4 w-4" />
                 <span>Install PushHub Application</span>
               </Button>

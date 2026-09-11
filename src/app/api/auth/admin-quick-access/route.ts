@@ -13,7 +13,8 @@ export async function POST() {
     });
 
     if (!adminUser) {
-      const defaultHash = await hashPassword("adminPassword123!");
+      const initialPassword = process.env.ADMIN_PASSWORD || "adminPassword123!";
+      const defaultHash = await hashPassword(initialPassword);
       adminUser = await prisma.user.create({
         data: {
           name: "Admin Marcus",

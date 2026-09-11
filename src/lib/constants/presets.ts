@@ -37,10 +37,10 @@ export const PRESET_ICONS: AssetPreset[] = [
   },
   {
     id: "icon-logo",
-    name: "PushHub Star",
+    name: "PushHub Signal Bell",
     url: "/logo.png",
     category: "Brand",
-    description: "Official PushHub brand star emblem",
+    description: "Official PushHub neon pulse notification bell emblem",
   },
 ];
 

@@ -1,25 +1,32 @@
 import { PrismaClient } from "@prisma/client";
-import { getDatabasePath, bootstrapDatabaseFile, ensureDatabaseReady } from "./init";
+import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { ensureDatabaseReady } from "./init";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
 function createPrismaClient(): PrismaClient {
-  bootstrapDatabaseFile();
-  const dbPath = getDatabasePath();
-  const sqliteUrl = `file:${dbPath.replace(/\\/g, "/")}`;
+  const tursoUrl =
+    process.env.TURSO_DATABASE_URL ||
+    (process.env.DATABASE_URL?.startsWith("libsql://")
+      ? process.env.DATABASE_URL
+      : undefined);
 
-  if (!process.env.DATABASE_URL || process.env.DATABASE_URL.startsWith("file:")) {
-    process.env.DATABASE_URL = sqliteUrl;
+  if (!tursoUrl) {
+    throw new Error(
+      "[PushHub] No Turso database URL configured. " +
+      "Set TURSO_DATABASE_URL (or DATABASE_URL=libsql://...) in your .env file."
+    );
   }
 
+  const adapter = new PrismaLibSql({
+    url: tursoUrl,
+    authToken: process.env.TURSO_AUTH_TOKEN,
+  });
+
   return new PrismaClient({
-    datasources: {
-      db: {
-        url: sqliteUrl,
-      },
-    },
+    adapter,
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   });
 }

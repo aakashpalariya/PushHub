@@ -15,7 +15,10 @@ export const metadata: Metadata = {
   description: "Create, preview, and test web push notifications directly from your browser and PWA.",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/logo.png",
+    icon: [
+      { url: "/favicon.png", sizes: "64x64", type: "image/png" },
+      { url: "/logo.png", sizes: "512x512", type: "image/png" },
+    ],
     apple: "/logo.png",
   },
   appleWebApp: {
@@ -45,6 +48,7 @@ export default function RootLayout({
     <html lang="en" className={baloo.variable} suppressHydrationWarning>
       <head>
         <ThemeScript />
+        <link rel="icon" href="/favicon.png" type="image/png" />
         <link rel="apple-touch-icon" href="/logo.png" />
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">

@@ -3,13 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Shield, Lock, Mail, ArrowRight, ArrowLeft, Key, Sparkles } from "lucide-react";
+import { Shield, Lock, Mail, ArrowRight, ArrowLeft, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
-import { toast } from "@/components/ui/custom-toaster";
-import { cn } from "@/lib/utils";
 
 export function AdminLoginForm({ currentMemberEmail }: { currentMemberEmail?: string }) {
   const router = useRouter();
@@ -17,13 +15,6 @@ export function AdminLoginForm({ currentMemberEmail }: { currentMemberEmail?: st
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
-
-  const handleQuickFill = () => {
-    setEmail("admin@pushhub.dev");
-    setPassword("adminPassword123!");
-    setFieldErrors({});
-    toast.info("Filled default administrator credentials");
-  };
 
   const validate = () => {
     const errs: { email?: string; password?: string } = {};
@@ -69,7 +60,6 @@ export function AdminLoginForm({ currentMemberEmail }: { currentMemberEmail?: st
         return;
       }
 
-      toast.success("Administrator session verified! Welcome to Operations Portal.");
       router.refresh();
       window.location.reload();
     } catch {
@@ -150,16 +140,6 @@ export function AdminLoginForm({ currentMemberEmail }: { currentMemberEmail?: st
               error={fieldErrors.password}
               required
             >
-              <div className="flex items-center justify-end mb-1">
-                <button
-                  type="button"
-                  onClick={handleQuickFill}
-                  className="text-xs font-semibold text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  <span>Auto-fill Default</span>
-                </button>
-              </div>
               <div className="relative">
                 <Lock className="h-4 w-4 absolute left-3.5 top-3.5 text-muted-foreground" />
                 <Input
@@ -189,17 +169,6 @@ export function AdminLoginForm({ currentMemberEmail }: { currentMemberEmail?: st
               <ArrowRight className="h-4 w-4" />
             </Button>
           </form>
-
-          {/* Default Credentials Info Box */}
-          <div className="p-3.5 rounded-2xl bg-secondary/40 border border-border/80 text-xs space-y-1">
-            <span className="font-bold text-foreground block">Default Admin Credentials</span>
-            <div className="font-mono text-[11px] text-purple-700 dark:text-purple-300">
-              Email: <strong className="text-foreground">admin@pushhub.dev</strong>
-            </div>
-            <div className="font-mono text-[11px] text-purple-700 dark:text-purple-300">
-              Password: <strong className="text-foreground">adminPassword123!</strong>
-            </div>
-          </div>
         </div>
       </div>
     </div>

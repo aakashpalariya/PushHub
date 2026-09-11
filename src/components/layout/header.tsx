@@ -4,12 +4,10 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { usePushSubscription } from "@/hooks/use-push-subscription";
-import { usePWAInstall } from "@/hooks/use-pwa-install";
 import {
   Bell,
   BellRing,
   BellOff,
-  Download,
   Smartphone,
   History,
   Settings,
@@ -35,7 +33,6 @@ export function Header({ user }: HeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { isSubscribed, subscribeDevice, permission } = usePushSubscription();
-  const { isInstallable, install } = usePWAInstall();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -114,18 +111,6 @@ export function Header({ user }: HeaderProps) {
 
         {/* Desktop Right Actions */}
         <div className="hidden md:flex items-center gap-3 ml-auto">
-          {isInstallable && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={install}
-              className="gap-1.5 text-xs border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span>Install PWA</span>
-            </Button>
-          )}
-
           {!isSubscribed ? (
             <Button
               size="sm"
@@ -293,20 +278,6 @@ export function Header({ user }: HeaderProps) {
                     <Settings className="h-4 w-4" />
                     <span>Settings &amp; Theme</span>
                   </Link>
-
-                  {isInstallable && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsMobileMenuOpen(false);
-                        install();
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-blue-700 dark:text-blue-400 hover:bg-blue-500/10 transition-colors text-left"
-                    >
-                      <Download className="h-4 w-4" />
-                      <span>Install PushHub App</span>
-                    </button>
-                  )}
                 </div>
 
                 {/* Sign Out Button */}

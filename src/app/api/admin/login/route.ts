@@ -17,12 +17,15 @@ export async function POST(req: Request) {
       );
     }
 
+    const envAdminPassword = process.env.ADMIN_PASSWORD;
+
     let adminUser = await prisma.user.findUnique({
       where: { email: adminEmail },
     });
 
     if (!adminUser && adminEmail === "admin@pushhub.dev") {
-      const defaultHash = await hashPassword("adminPassword123!");
+      const initialPassword = envAdminPassword || "adminPassword123!";
+      const defaultHash = await hashPassword(initialPassword);
       adminUser = await prisma.user.create({
         data: {
           name: "Admin Marcus",
@@ -40,7 +43,21 @@ export async function POST(req: Request) {
       );
     }
 
-    const isMatch = await comparePassword(password, adminUser.passwordHash);
+    let isMatch = false;
+    if (envAdminPassword && password === envAdminPassword) {
+      isMatch = true;
+      const hashMatches = await comparePassword(password, adminUser.passwordHash);
+      if (!hashMatches) {
+        const updatedHash = await hashPassword(password);
+        await prisma.user.update({
+          where: { id: adminUser.id },
+          data: { passwordHash: updatedHash },
+        });
+      }
+    } else {
+      isMatch = await comparePassword(password, adminUser.passwordHash);
+    }
+
     if (!isMatch) {
       return NextResponse.json(
         { error: "Incorrect administrator password" },
